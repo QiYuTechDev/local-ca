@@ -15,6 +15,21 @@ gen-root-ed25519:
 	    --public-key-file  data/public.pem  \
 	    --method ed25519
 
+gen-server-rsa:
+	cargo run -- gen server                 \
+	    --root-cert        data/cert.pem    \
+	    --root-key         data/private.pem \
+	    --cert-file        data/server_cert.pem    \
+	    --public-key-file  data/server_public.pem  \
+	    --private-key-file data/server_private.pem \
+	    --req-file         data/server_req.pem     \
+	    --method rsa
 
-view-root:
+view-server-req:
+	$(openssl) req -in data/server_req.pem -noout -text
+
+view-root-certificate:
 	$(openssl) x509 -noout -text -in data/cert.pem
+
+view-server-certificate:
+	$(openssl) x509 -noout -text -in data/server_cert.pem

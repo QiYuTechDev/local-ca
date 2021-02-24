@@ -1,25 +1,8 @@
-use std::convert::Infallible;
-use std::str::FromStr;
+use openssl::nid::Nid;
 use structopt::StructOpt;
 
-#[derive(Debug, StructOpt)]
-/// 生成方式
-enum GenMethod {
-    RSA,
-    Ed25519,
-}
-
-impl FromStr for GenMethod {
-    type Err = Infallible;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "rsa" => Ok(GenMethod::RSA),
-            "ed25519" => Ok(GenMethod::Ed25519),
-            _ => panic!("当前仅支持 RSA 和 ed25519 算法。"),
-        }
-    }
-}
+use super::utils;
+use super::GenMethod;
 
 #[derive(Debug, StructOpt)]
 /// 生成新的根证书
@@ -99,54 +82,37 @@ impl GenRoot {
             x509_name.append_entry_by_text("CN", "root").unwrap();
             x509_name.build()
         };
+        let issuer_name = {
+            let mut x509_name = openssl::x509::X509NameBuilder::new().unwrap();
+            x509_name.append_entry_by_text("C", "CN").unwrap();
+            x509_name.append_entry_by_text("ST", "BJ").unwrap();
+            x509_name.append_entry_by_text("O", "QiYuTech").unwrap();
+            x509_name.append_entry_by_text("CN", "root").unwrap();
+            x509_name.build()
+        };
+
 
         let x509 = {
             let mut c = openssl::x509::X509Builder::new().unwrap();
-            let (e1, e2, e3, e4, e5) = {
+            let es = {
                 let ctx = c.x509v3_context(None, None);
-                let e1 = openssl::x509::X509Extension::new_nid(
-                    None,
-                    Some(&ctx),
-                    openssl::nid::Nid::BASIC_CONSTRAINTS,
-                    "critical,CA:TRUE",
+                utils::gen_multi_x509_ext(
+                    &ctx,
+                    vec![
+                        (Nid::BASIC_CONSTRAINTS, "critical,CA:TRUE"),
+                        (Nid::KEY_USAGE, "critical,keyCertSign,cRLSign"),
+                        (Nid::SUBJECT_KEY_IDENTIFIER, "hash"),
+                        (Nid::NETSCAPE_CERT_TYPE, "sslCA"),
+                        (Nid::NETSCAPE_COMMENT, "QiYuTech Self-Sign CA"),
+                    ],
                 )
-                .unwrap();
-                let e2 = openssl::x509::X509Extension::new_nid(
-                    None,
-                    Some(&ctx),
-                    openssl::nid::Nid::KEY_USAGE,
-                    "critical,keyCertSign,cRLSign",
-                )
-                .unwrap();
-                let e3 = openssl::x509::X509Extension::new_nid(
-                    None,
-                    Some(&ctx),
-                    openssl::nid::Nid::SUBJECT_KEY_IDENTIFIER,
-                    "hash",
-                )
-                .unwrap();
-                let e4 = openssl::x509::X509Extension::new_nid(
-                    None,
-                    Some(&ctx),
-                    openssl::nid::Nid::NETSCAPE_CERT_TYPE,
-                    "sslCA",
-                )
-                .unwrap();
-                let e5 = openssl::x509::X509Extension::new_nid(
-                    None,
-                    Some(&ctx),
-                    openssl::nid::Nid::NETSCAPE_COMMENT,
-                    "QiYuTech Self-Sign Root CA",
-                )
-                .unwrap();
-                (e1, e2, e3, e4, e5)
             };
-            c.append_extension(e1).unwrap();
-            c.append_extension(e2).unwrap();
-            c.append_extension(e3).unwrap();
-            c.append_extension(e4).unwrap();
-            c.append_extension(e5).unwrap();
+
+            for e in es {
+                c.append_extension(e).unwrap();
+            }
             c.set_subject_name(subject_name.as_ref()).unwrap();
+            c.set_issuer_name(issuer_name.as_ref()).unwrap();
             c.set_version(2).unwrap();
             c.set_serial_number(sn.as_ref()).unwrap();
             c.set_not_before(not_before.as_ref()).unwrap();
@@ -160,7 +126,7 @@ impl GenRoot {
                 c.sign(pkey.as_ref(), unsafe {
                     openssl::hash::MessageDigest::from_ptr(std::ptr::null())
                 })
-                .unwrap();
+                    .unwrap();
             }
             c.build()
         };
