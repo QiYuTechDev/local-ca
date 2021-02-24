@@ -1,0 +1,11 @@
+[package]
+name = "local-ca"
+version = "0.1.0"
+authors = ["dev <dev@qiyutech.tech>"]
+edition = "2018"
+
+
+[dependencies]
+structopt = "0.3"
+
+openssl = { version = "0.10", features = ["vendored"] }
