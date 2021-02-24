@@ -131,6 +131,14 @@ impl GenServer {
 
         let private = openssl::pkey::PKey::private_key_from_pem(root.as_slice()).unwrap();
 
+
+        {
+            let es = req.extensions().unwrap();
+
+            for e in es {
+                x509.append_extension(e).unwrap();
+            }
+        }
         x509.set_subject_name(req.subject_name()).unwrap();
         x509.set_version(req.version()).unwrap();
         x509.set_serial_number(&sn).unwrap();
